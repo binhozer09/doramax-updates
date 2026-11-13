@@ -3,6 +3,20 @@
 (() => {
   "use strict";
 
+  // Indicador visual temporário para confirmar o carregamento deste arquivo remoto.
+  function installRemoteUpdateHeart() {
+    if (!document.body || document.getElementById("dmRemoteUpdateHeart")) return;
+    const heart = document.createElement("span");
+    heart.id = "dmRemoteUpdateHeart";
+    heart.textContent = "♥";
+    heart.setAttribute("aria-label", "Atualização remota ativa");
+    heart.style.cssText = "position:fixed;right:9px;bottom:9px;z-index:2147483647;color:#ff1f3d;font-size:14px;line-height:1;pointer-events:none;text-shadow:0 1px 3px #000;";
+    document.body.appendChild(heart);
+  }
+  if (document.body) installRemoteUpdateHeart();
+  else document.addEventListener("DOMContentLoaded", installRemoteUpdateHeart, { once: true });
+
+
   const SUPABASE_URL = "https://qbwsaahlkovrejwliefv.supabase.co";
   const SUPABASE_KEY = "sb_publishable_IUeH0RsYhkHpsBflAPo1WQ_1VVPbsAK";
   const PICPay_URL = "https://link.picpay.com/p/17945341236af66aeb27abc";
@@ -55,19 +69,6 @@
   installTestBannerCleanup();
   document.addEventListener("DOMContentLoaded", installTestBannerCleanup, { once: true });
   window.addEventListener("load", installTestBannerCleanup, { once: true });
-
-  // Indicador visual temporário para confirmar o carregamento deste arquivo remoto.
-  function installRemoteUpdateHeart() {
-    if (!document.body || document.getElementById("dmRemoteUpdateHeart")) return;
-    const heart = document.createElement("span");
-    heart.id = "dmRemoteUpdateHeart";
-    heart.textContent = "♥";
-    heart.setAttribute("aria-label", "Atualização remota ativa");
-    heart.style.cssText = "position:fixed;right:9px;bottom:9px;z-index:2147483647;color:#ff1f3d;font-size:14px;line-height:1;pointer-events:none;text-shadow:0 1px 3px #000;";
-    document.body.appendChild(heart);
-  }
-  if (document.body) installRemoteUpdateHeart();
-  else document.addEventListener("DOMContentLoaded", installRemoteUpdateHeart, { once: true });
 
   const feed = document.getElementById("feed");
   let cards = [...document.querySelectorAll("#feed .video")];
