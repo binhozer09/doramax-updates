@@ -1,15 +1,6 @@
 /*
  * DORAMAX remote runtime.
- * This file is loaded dynamically by access.js. Edit it to add/change
- * WebView interface behavior without rebuilding the Android APK.
- *
- * Available API:
- *   app.getConfig()
- *   app.showNotice(text, "info" | "success" | "warning")
- *   app.clearNotice()
- *   app.setAccentColor("#hex")
- *
- * When changing this file, increment runtime.version in remote-config.json.
+ * UI behavior controlled by the public remote_config row in Supabase.
  */
 (() => {
   "use strict";
@@ -19,16 +10,29 @@
   }
 
   const runtime = {
-    version: "1.0.0",
-    init({ config, app }) {
-      // Ponto de entrada para funcionalidades de interface atualizadas remotamente.
-      // Exemplo: app.showNotice("Novidade disponível!", "success");
+    version: "1.0.1",
+    init({ config }) {
+      const id = "dmRemoteCornerIndicator";
+      const old = document.getElementById(id);
+      if (old) old.remove();
+
+      const indicator = config && config.indicator;
+      if (indicator && indicator.enabled === true) {
+        const node = document.createElement("span");
+        node.id = id;
+        node.textContent = String(indicator.emoji || "🔥").slice(0, 8);
+        node.setAttribute("aria-label", "Indicador remoto do DORAMAX");
+        node.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647;font-size:22px;line-height:1;pointer-events:none;text-shadow:0 1px 4px #000;";
+        (document.body || document.documentElement).appendChild(node);
+      }
+
       window.dispatchEvent(new CustomEvent("doramax:remote-ready", {
         detail: { version: runtime.version, config }
       }));
     },
     dispose() {
-      // Remova aqui listeners/timers adicionados por esta extensão ao substituí-la.
+      const node = document.getElementById("dmRemoteCornerIndicator");
+      if (node) node.remove();
     }
   };
 
