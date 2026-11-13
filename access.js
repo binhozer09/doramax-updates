@@ -8,53 +8,43 @@
   const PICPay_URL = "https://link.picpay.com/p/17945341236af66aeb27abc";
   const STORAGE_KEY = "doramax_session_v1";
 
-  // Remove o aviso temporário de teste do topo do aplicativo.
+  // Remove somente o banner de teste publicado durante a validação da atualização remota.
   const TEST_BANNER_TEXT = "DORAMAX: atualização remota funcionando!";
-  const cleanBannerText = (value) => String(value || "").replace(/\s+/g, " ").trim();
-  const removeTestBanner = (root = document) => {
-    const elements = [];
-    if (root.nodeType === 1) elements.push(root);
-    root.querySelectorAll?.("*").forEach((el) => elements.push(el));
-    for (const el of elements) {
-      const text = cleanBannerText(el.innerText || el.textContent);
-      if (!text.includes(TEST_BANNER_TEXT)) continue;
-      const childContains = [...el.children].some((child) =>
-        cleanBannerText(child.innerText || child.textContent).includes(TEST_BANNER_TEXT)
+  const cleanBannerText = (value) => String(value || "").replace(/\\s+/g, " ").trim();
+  const removeTestBanner = () => {
+    const all = [...document.querySelectorAll("body *")];
+    for (const el of all) {
+      if (!cleanBannerText(el.textContent).includes(TEST_BANNER_TEXT)) continue;
+      const childHasText = [...el.children].some((child) =>
+        cleanBannerText(child.textContent).includes(TEST_BANNER_TEXT)
       );
-      if (childContains) continue;
+      if (childHasText) continue;
       let target = el;
       let parent = el.parentElement;
-      while (parent && parent !== document.body && parent !== document.documentElement) {
+      while (parent && parent !== document.body) {
         const marker = ((parent.id || "") + " " +
           (typeof parent.className === "string" ? parent.className : "")).toLowerCase();
-        if (/(banner|toast|notice|alert|message|status|test)/.test(marker) &&
-            cleanBannerText(parent.innerText || parent.textContent).includes(TEST_BANNER_TEXT)) {
-          target = parent;
-        }
+        if (/(banner|toast|notice|alert|message|status|test)/.test(marker)) target = parent;
         parent = parent.parentElement;
       }
       target.remove();
     }
   };
   const installTestBannerCleanup = () => {
-    removeTestBanner(document);
+    removeTestBanner();
     if (!document.documentElement || window.__doramaxBannerCleanup) return;
-    window.__doramaxBannerCleanup = new MutationObserver((records) => {
-      removeTestBanner(document.body || document.documentElement);
-      for (const record of records) {
-        for (const node of record.addedNodes) {
-          if (node.nodeType === 1) removeTestBanner(node);
-          else if (node.parentElement) removeTestBanner(node.parentElement);
-        }
-      }
-    });
+    window.__doramaxBannerCleanup = new MutationObserver(() => removeTestBanner());
     window.__doramaxBannerCleanup.observe(document.documentElement, {
       childList: true, characterData: true, subtree: true
     });
+    // Segunda proteção para avisos inseridos depois da inicialização do app.
+    window.setInterval(removeTestBanner, 500);
   };
-  installTestBannerCleanup();
-  document.addEventListener("DOMContentLoaded", installTestBannerCleanup, { once: true });
-  window.addEventListener("load", installTestBannerCleanup, { once: true });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installTestBannerCleanup, { once: true });
+  } else {
+    installTestBannerCleanup();
+  }
 
   const feed = document.getElementById("feed");
   let cards = [...document.querySelectorAll("#feed .video")];
