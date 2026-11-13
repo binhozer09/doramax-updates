@@ -69,6 +69,8 @@
   const REMOTE_RUNTIME_URL = "https://raw.githubusercontent.com/binhozer09/doramax-updates/main/remote-runtime.js";
   const REMOTE_POLL_MS = 5 * 60 * 1000;
   let remoteRuntimeVersion = "";
+  let remoteRuntimeLoading = "";
+  let remoteConfigCheck = null;
   let remoteConfig = null;
 
   function remoteColor(value, fallback) {
@@ -152,17 +154,23 @@
   }
 
   function loadRemoteRuntime(runtime) {
-    if (runtime.enabled === false) return;
+    if (runtime.enabled === false) {
+      const previous = window.DORAMAX_REMOTE_RUNTIME;
+      try { if (previous && typeof previous.dispose === "function") previous.dispose(); } catch (_) {}
+      remoteRuntimeVersion = "";
+      remoteRuntimeLoading = "";
+      return;
+    }
     const version = String(runtime.version || "1.0.0").slice(0, 40);
-    if (version === remoteRuntimeVersion) return;
-    const previous = window.DORAMAX_REMOTE_RUNTIME;
-    try { if (previous && typeof previous.dispose === "function") previous.dispose(); } catch (error) { console.warn("[DORAMAX] Falha ao encerrar extensão remota anterior.", error); }
+    if (version === remoteRuntimeVersion || version === remoteRuntimeLoading) return;
+    remoteRuntimeLoading = version;
     const script = document.createElement("script");
     script.src = REMOTE_RUNTIME_URL + "?v=" + encodeURIComponent(version) + "&ts=" + Date.now();
     script.async = true;
     script.onload = () => {
       const api = window.DORAMAX_REMOTE_RUNTIME;
       if (!api || typeof api.init !== "function") {
+        remoteRuntimeLoading = "";
         console.warn("[DORAMAX] Extensão remota carregada sem init().");
         return;
       }
@@ -171,9 +179,14 @@
         remoteRuntimeVersion = version;
       } catch (error) {
         console.error("[DORAMAX] Erro ao iniciar extensão remota.", error);
+      } finally {
+        remoteRuntimeLoading = "";
       }
     };
-    script.onerror = () => console.warn("[DORAMAX] Extensão remota indisponível; mantendo o app atual.");
+    script.onerror = () => {
+      remoteRuntimeLoading = "";
+      console.warn("[DORAMAX] Extensão remota indisponível; mantendo o app atual.");
+    };
     document.head.appendChild(script);
   }
 
@@ -186,30 +199,45 @@
   };
 
   async function checkRemoteConfig() {
-    try {
-      let config = null;
-      try {
-        const dbResponse = await fetch(
-          SUPABASE_URL + "/rest/v1/app_settings?key=eq.remote_config&is_public=eq.true&select=value",
-          { headers: { "apikey": SUPABASE_KEY }, cache: "no-store" }
-        );
-        if (dbResponse.ok) {
-          const rows = await dbResponse.json();
-          if (Array.isArray(rows) && rows[0] && rows[0].value) config = rows[0].value;
+    if (remoteConfigCheck) return remoteConfigCheck;
+    remoteConfigCheck = (async () => {
+      const fetchWithTimeout = async (url, options = {}) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+          return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
         }
-      } catch (dbError) {
-        console.warn("[DORAMAX] Supabase remoto indisponível; tentando configuração de reserva.", dbError);
+      };
+      try {
+        let config = null;
+        try {
+          const dbResponse = await fetchWithTimeout(
+            SUPABASE_URL + "/rest/v1/app_settings?key=eq.remote_config&is_public=eq.true&select=value",
+            { headers: { "apikey": SUPABASE_KEY }, cache: "no-store" }
+          );
+          if (dbResponse.ok) {
+            const rows = await dbResponse.json();
+            if (Array.isArray(rows) && rows[0] && rows[0].value) config = rows[0].value;
+          }
+        } catch (dbError) {
+          console.warn("[DORAMAX] Supabase remoto indisponível; tentando configuração de reserva.", dbError);
+        }
+        if (!config) {
+          const response = await fetchWithTimeout(REMOTE_CONFIG_URL + "?ts=" + Date.now(), { cache: "no-store" });
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          config = await response.json();
+        }
+        if (!config || config.schemaVersion !== 1) throw new Error("Formato de configuração remota inválido.");
+        applyRemoteConfig(config);
+      } catch (error) {
+        console.warn("[DORAMAX] Não foi possível consultar configurações remotas; mantendo a última interface.", error);
+      } finally {
+        remoteConfigCheck = null;
       }
-      if (!config) {
-        const response = await fetch(REMOTE_CONFIG_URL + "?ts=" + Date.now(), { cache: "no-store" });
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        config = await response.json();
-      }
-      if (!config || config.schemaVersion !== 1) throw new Error("Formato de configuração remota inválido.");
-      applyRemoteConfig(config);
-    } catch (error) {
-      console.warn("[DORAMAX] Não foi possível consultar configurações remotas; mantendo a última interface.", error);
-    }
+    })();
+    return remoteConfigCheck;
   }
   checkRemoteConfig();
   window.setInterval(checkRemoteConfig, REMOTE_POLL_MS);
