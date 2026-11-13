@@ -52,7 +52,7 @@ jobs:
           }
           with open("videos.json", "w", encoding="utf-8") as f:
               json.dump(catalog, f, ensure_ascii=False, indent=2)
-              f.write("\\n")
+              f.write("\n")
           print(f"Catálogo atualizado no formato compatível: {len(videos)} vídeos.")
           PY
       - name: Validar formato do catálogo
