@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-13T00:00:00Z",
+  "notice": {
+    "enabled": false,
+    "text": "",
+    "type": "info",
+    "dismissible": true
+  },
+  "theme": {
+    "accentColor": "#e62e49",
+    "backgroundColor": ""
+  },
+  "visibility": {
+    "hideSelectors": []
+  },
+  "runtime": {
+    "enabled": true,
+    "version": "1.0.0"
+  }
+}
