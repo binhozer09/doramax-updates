@@ -1,4 +1,4 @@
-name: Atualizar vídeos do canal Choque de Drama
+name: Atualizar vídeos dos canais Choque de Drama e MZ DJ06
 on:
   schedule:
     - cron: '*/30 * * * *'
@@ -10,72 +10,93 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: sync-choque-de-drama
+  group: sync-youtube-channels
   cancel-in-progress: true
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Instalar yt-dlp
         run: python -m pip install --upgrade yt-dlp
-      - name: Buscar catálogo público completo do canal
+      - name: Buscar vídeos públicos dos dois canais
         run: |
-          yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@choquededrama/videos" > channel.json
+          yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@choquededrama/videos" > choque.json
+          yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@mzdj06-r3z/videos" > mzdj.json
+      - name: Unificar e validar catálogo
+        run: |
           python - <<'PY'
           import json
           from datetime import datetime, timezone
-          channel_id = "UCVRGRH2goft4HQ6fWkq-j7g"
-          with open("channel.json", encoding="utf-8") as f:
-              data = json.load(f)
+
+          sources = [
+              ("choque.json", "UCVRGRH2goft4HQ6fWkq-j7g"),
+              ("mzdj.json", "mzdj06-r3z"),
+          ]
           videos = []
           seen = set()
-          for item in data.get("entries") or []:
-              if not item:
-                  continue
-              video_id = item.get("id")
-              if not video_id or video_id in seen:
-                  continue
-              seen.add(video_id)
-              videos.append({
-                  "id": video_id,
-                  "title": item.get("title") or "Vídeo do canal Choque de Drama",
-                  "published": item.get("upload_date") or ""
-              })
-          if not videos:
-              raise SystemExit("O YouTube não retornou vídeos; catálogo anterior preservado.")
+          counts = {}
+          for filename, channel in sources:
+              with open(filename, encoding="utf-8") as f:
+                  data = json.load(f)
+              count = 0
+              for item in data.get("entries") or []:
+                  if not item:
+                      continue
+                  video_id = item.get("id")
+                  if not video_id or video_id in seen:
+                      continue
+                  seen.add(video_id)
+                  videos.append({
+                      "id": video_id,
+                      "title": item.get("title") or "Vídeo do canal",
+                      "published": item.get("upload_date") or "",
+                      "source": channel
+                  })
+                  count += 1
+              if count == 0:
+                  raise SystemExit(f"Nenhum vídeo novo/visível foi retornado para {channel}; catálogo anterior preservado.")
+              counts[channel] = count
+
+          if len(videos) < 200:
+              raise SystemExit(f"Catálogo inesperadamente pequeno ({len(videos)} vídeos); publicação cancelada.")
+
           catalog = {
-              "channelId": channel_id,
+              "channelId": "UCVRGRH2goft4HQ6fWkq-j7g",
+              "channelIds": ["UCVRGRH2goft4HQ6fWkq-j7g", "mzdj06-r3z"],
               "updatedAt": datetime.now(timezone.utc).isoformat(),
               "videos": videos
           }
           with open("videos.json", "w", encoding="utf-8") as f:
               json.dump(catalog, f, ensure_ascii=False, indent=2)
-              f.write("\n")
-          print(f"Catálogo atualizado no formato compatível: {len(videos)} vídeos.")
+              f.write("\\n")
+          print("Vídeos por canal:", counts)
+          print(f"Catálogo unificado: {len(videos)} vídeos únicos.")
           PY
-      - name: Validar formato do catálogo
+      - name: Validar formato final
         run: |
           python - <<'PY'
           import json
           with open("videos.json", encoding="utf-8") as f:
               data = json.load(f)
-          assert isinstance(data, dict), "Catálogo precisa ser um objeto JSON."
-          assert data.get("channelId"), "channelId ausente."
-          assert isinstance(data.get("videos"), list) and data["videos"], "Lista videos vazia ou inválida."
-          assert all(isinstance(v, dict) and v.get("id") for v in data["videos"]), "Há vídeo sem ID."
-          print(f"Validação OK: {len(data['videos'])} vídeos.")
+          assert isinstance(data, dict)
+          assert data.get("channelId")
+          assert isinstance(data.get("videos"), list) and data["videos"]
+          assert all(isinstance(v, dict) and v.get("id") for v in data["videos"])
+          assert len({v["id"] for v in data["videos"]}) == len(data["videos"]), "IDs duplicados no catálogo."
+          assert len(data.get("channelIds", [])) == 2, "Os dois canais não estão configurados."
+          print(f"Validação OK: {len(data['videos'])} vídeos únicos.")
           PY
       - name: Publicar catálogo
         run: |
-          rm -f channel.json
+          rm -f choque.json mzdj.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add videos.json
           if git diff --cached --quiet; then
             echo "Catálogo já está atualizado."
           else
-            git commit -m "Atualizar catálogo completo Choque de Drama"
+            git commit -m "Atualizar catálogo dos dois canais do YouTube"
             git push
           fi
