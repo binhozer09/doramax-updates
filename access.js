@@ -309,6 +309,21 @@
       adminButton.textContent = email ? "LOGOUT" : "LOGIN";
       adminButton.title = email ? "Sair da conta" : "Entrar na conta";
     }
+    let contentButton = document.getElementById("dmContentAdminBtn");
+    if (isAdmin && email) {
+      if (!contentButton) {
+        contentButton = document.createElement("button");
+        contentButton.id = "dmContentAdminBtn";
+        contentButton.type = "button";
+        contentButton.textContent = "PAINEL ADM";
+        contentButton.style.cssText = "border:0;border-radius:8px;padding:8px 10px;background:#159b60;color:#fff;font-size:11px;font-weight:800;margin-left:6px;";
+        contentButton.addEventListener("click", openContentAdminPanel);
+        const actions = document.querySelector(".top-actions");
+        if (actions) actions.appendChild(contentButton);
+      }
+    } else if (contentButton) {
+      contentButton.remove();
+    }
   }
 
   async function refreshSessionIfNeeded() {
@@ -494,6 +509,7 @@
       const uid = currentUser.id;
       const adminRows = await api("/rest/v1/admin_users?select=user_id&user_id=eq." + encodeURIComponent(uid), { method: "GET" }, session.access_token);
       isAdmin = Array.isArray(adminRows) && adminRows.length > 0;
+      updateLoggedAs();
       if (isAdmin) {
         unlocked = true;
       } else {
@@ -674,6 +690,178 @@
     }
   }
 
+  // Painel simples para administrar conteúdo remoto sem editar arquivos JSON.
+  let contentAdminPanel = null;
+  function createContentAdminPanel() {
+    if (contentAdminPanel) return contentAdminPanel;
+    const overlay = document.createElement("div");
+    overlay.id = "dmContentAdminPanel";
+    overlay.style.cssText = "display:none;position:fixed;inset:0;z-index:2147483000;background:#000d;padding:12px;overflow:auto;align-items:flex-start;justify-content:center;";
+    const card = document.createElement("section");
+    card.style.cssText = "width:min(100%,620px);margin:12px auto;background:#151515;color:#fff;border:1px solid #ffffff25;border-radius:18px;padding:18px;box-shadow:0 12px 40px #000;font:14px Arial,sans-serif;";
+    const header = document.createElement("div");
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;";
+    const title = document.createElement("h2");
+    title.textContent = "Painel de conteúdo DORAMAX";
+    title.style.cssText = "font-size:19px;margin:0;";
+    const close = document.createElement("button");
+    close.type = "button"; close.textContent = "×";
+    close.style.cssText = "border:0;background:#333;color:#fff;border-radius:9px;font-size:24px;width:38px;height:38px;";
+    close.onclick = () => { overlay.style.display = "none"; };
+    header.append(title, close);
+
+    const status = document.createElement("p");
+    status.id = "dmContentAdminStatus";
+    status.style.cssText = "color:#b9e7c9;min-height:18px;margin:8px 0;";
+    const sectionTitle = (value) => {
+      const el = document.createElement("h3"); el.textContent = value;
+      el.style.cssText = "font-size:16px;margin:18px 0 9px;padding-top:12px;border-top:1px solid #ffffff20;";
+      return el;
+    };
+    const fieldLabel = (value) => {
+      const el = document.createElement("label"); el.textContent = value;
+      el.style.cssText = "display:block;margin:10px 0 5px;color:#ddd;font-weight:700;";
+      return el;
+    };
+    const noticeEnabled = document.createElement("input");
+    noticeEnabled.type = "checkbox"; noticeEnabled.id = "dmContentNoticeEnabled";
+    const noticeLabel = document.createElement("label");
+    noticeLabel.style.cssText = "display:flex;align-items:center;gap:9px;margin:10px 0;";
+    noticeLabel.append(noticeEnabled, document.createTextNode("Mostrar aviso no aplicativo"));
+    const noticeText = document.createElement("textarea");
+    noticeText.id = "dmContentNoticeText"; noticeText.rows = 3;
+    noticeText.placeholder = "Digite o aviso que aparecerá no aplicativo";
+    noticeText.style.cssText = "width:100%;box-sizing:border-box;background:#242424;color:#fff;border:1px solid #555;border-radius:9px;padding:11px;font:14px Arial;resize:vertical;";
+    const color = document.createElement("input");
+    color.type = "color"; color.id = "dmContentAccent";
+    color.style.cssText = "width:64px;height:38px;background:#222;border:1px solid #555;border-radius:8px;";
+    const saveConfig = document.createElement("button");
+    saveConfig.type = "button"; saveConfig.textContent = "SALVAR AVISO E COR";
+    saveConfig.style.cssText = "width:100%;border:0;border-radius:10px;padding:13px;background:#159b60;color:#fff;font-weight:800;margin-top:12px;";
+    saveConfig.onclick = saveRemoteContentConfig;
+
+    const search = document.createElement("input");
+    search.id = "dmContentVideoSearch"; search.placeholder = "Pesquisar vídeo pelo título...";
+    search.style.cssText = "width:100%;box-sizing:border-box;background:#242424;color:#fff;border:1px solid #555;border-radius:9px;padding:12px;font:14px Arial;";
+    const searchButton = document.createElement("button");
+    searchButton.type = "button"; searchButton.textContent = "PESQUISAR VÍDEOS";
+    searchButton.style.cssText = "width:100%;border:0;border-radius:10px;padding:12px;background:#333;color:#fff;font-weight:800;margin-top:8px;";
+    searchButton.onclick = searchRemoteVideos;
+    search.addEventListener("keydown", event => { if (event.key === "Enter") searchRemoteVideos(); });
+    const results = document.createElement("div");
+    results.id = "dmContentVideoResults";
+    results.style.cssText = "display:grid;gap:9px;margin-top:12px;";
+    card.append(header, status, sectionTitle("Aviso e aparência"),
+      noticeLabel, fieldLabel("Texto do aviso"), noticeText,
+      fieldLabel("Cor principal"), color, saveConfig,
+      sectionTitle("Gerenciar vídeos"), search, searchButton, results);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    contentAdminPanel = overlay;
+    return overlay;
+  }
+
+  async function openContentAdminPanel() {
+    if (!isAdmin || !session) return;
+    const panel = createContentAdminPanel();
+    panel.style.display = "flex";
+    const status = document.getElementById("dmContentAdminStatus");
+    status.textContent = "Carregando configurações...";
+    try {
+      const rows = await api("/rest/v1/app_settings?select=value&key=eq.remote_config", { method: "GET" }, session.access_token);
+      const config = rows && rows[0] && rows[0].value ? rows[0].value : {};
+      document.getElementById("dmContentNoticeEnabled").checked = !!(config.notice && config.notice.enabled);
+      document.getElementById("dmContentNoticeText").value = config.notice && config.notice.text || "";
+      document.getElementById("dmContentAccent").value = /^#[0-9a-f]{6}$/i.test(config.theme && config.theme.accentColor || "") ? config.theme.accentColor : "#e62e49";
+      status.textContent = "Configurações carregadas. As alterações são publicadas na nuvem.";
+    } catch (error) {
+      status.textContent = "Não foi possível carregar: " + error.message;
+    }
+  }
+
+  async function saveRemoteContentConfig() {
+    if (!isAdmin || !session) return;
+    const status = document.getElementById("dmContentAdminStatus");
+    status.textContent = "Salvando...";
+    try {
+      const rows = await api("/rest/v1/app_settings?select=value&key=eq.remote_config", { method: "GET" }, session.access_token);
+      const config = rows && rows[0] && rows[0].value ? rows[0].value : {
+        schemaVersion: 1, notice: {}, theme: {}, visibility: { hideSelectors: [] }, runtime: { enabled: true, version: "1.0.0" }
+      };
+      config.schemaVersion = 1;
+      config.updatedAt = new Date().toISOString();
+      config.notice = {
+        enabled: document.getElementById("dmContentNoticeEnabled").checked,
+        text: document.getElementById("dmContentNoticeText").value.trim().slice(0, 500),
+        type: "info", dismissible: true
+      };
+      config.theme = config.theme || {};
+      config.theme.accentColor = document.getElementById("dmContentAccent").value;
+      await api("/rest/v1/app_settings?key=eq.remote_config", {
+        method: "PATCH", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ value: config, is_public: true, updated_at: config.updatedAt })
+      }, session.access_token);
+      applyRemoteConfig(config);
+      status.textContent = "Salvo! A alteração já foi publicada para o aplicativo.";
+    } catch (error) {
+      status.textContent = "Erro ao salvar: " + error.message;
+    }
+  }
+
+  async function searchRemoteVideos() {
+    if (!isAdmin || !session) return;
+    const results = document.getElementById("dmContentVideoResults");
+    const term = document.getElementById("dmContentVideoSearch").value.trim();
+    results.textContent = "Pesquisando...";
+    try {
+      const filter = term ? "&title=ilike.*" + encodeURIComponent(term) + "*" : "";
+      const rows = await api("/rest/v1/videos?select=id,title,is_active,position,manual_override&order=position.asc&limit=40" + filter, { method: "GET" }, session.access_token);
+      results.innerHTML = "";
+      if (!rows.length) { results.textContent = "Nenhum vídeo encontrado."; return; }
+      rows.forEach(video => {
+        const item = document.createElement("div");
+        item.style.cssText = "background:#222;border:1px solid #ffffff20;border-radius:11px;padding:11px;display:grid;gap:8px;";
+        const name = document.createElement("input");
+        name.value = video.title || ""; name.setAttribute("aria-label", "Título do vídeo");
+        name.style.cssText = "width:100%;box-sizing:border-box;background:#151515;color:#fff;border:1px solid #555;border-radius:8px;padding:10px;";
+        const line = document.createElement("div");
+        line.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;";
+        const visibleLabel = document.createElement("label");
+        visibleLabel.style.cssText = "display:flex;align-items:center;gap:7px;color:#ddd;";
+        const visible = document.createElement("input"); visible.type = "checkbox"; visible.checked = video.is_active === true;
+        visibleLabel.append(visible, document.createTextNode("Mostrar no app"));
+        const save = document.createElement("button");
+        save.type = "button"; save.textContent = "SALVAR";
+        save.style.cssText = "border:0;border-radius:8px;padding:9px 14px;background:#159b60;color:#fff;font-weight:800;";
+        save.onclick = async () => {
+          save.disabled = true; save.textContent = "SALVANDO...";
+          try {
+            await api("/rest/v1/videos?id=eq." + encodeURIComponent(video.id), {
+              method: "PATCH", headers: { "Prefer": "return=minimal" },
+              body: JSON.stringify({
+                title: name.value.trim() || video.title,
+                is_active: visible.checked,
+                manual_override: true,
+                updated_at: new Date().toISOString()
+              })
+            }, session.access_token);
+            save.textContent = "SALVO";
+            const status = document.getElementById("dmContentAdminStatus");
+            status.textContent = "Vídeo atualizado. Reabra o app para ver a alteração no feed.";
+          } catch (error) {
+            save.disabled = false; save.textContent = "SALVAR";
+            document.getElementById("dmContentAdminStatus").textContent = "Erro ao salvar vídeo: " + error.message;
+          }
+        };
+        line.append(visibleLabel, save);
+        item.append(name, line);
+        results.appendChild(item);
+      });
+    } catch (error) {
+      results.textContent = "Erro ao pesquisar vídeos: " + error.message;
+    }
+  }
+
   async function logout() {
     try {
       if (session && session.access_token) {
@@ -684,6 +872,7 @@
     currentUser = null;
     isAdmin = false;
     unlocked = false;
+    updateLoggedAs();
     document.getElementById("dmAuthForm").style.display = "block";
     document.getElementById("dmSwitch").style.display = "block";
     document.getElementById("dmLogout").style.display = "none";
