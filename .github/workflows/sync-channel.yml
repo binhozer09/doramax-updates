@@ -20,12 +20,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Instalar yt-dlp
         run: python -m pip install --upgrade yt-dlp
-      - name: Buscar vídeos públicos dos quatro canais
+      - name: Buscar vídeos públicos dos cinco canais
         run: |
           yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@choquededrama/videos" > choque.json
           yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@mzdj06-r3z/videos" > mzdj.json
           yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@minutodevinganca/videos" > minutodevinganca.json
           yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@modoheroidrama/videos" > modoheroidrama.json
+          yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@fuegotv-z7u/videos" > fuegotv.json
       - name: Unificar e validar catálogo
         run: |
           python - <<'PY'
@@ -37,6 +38,7 @@ jobs:
               ("mzdj.json", "mzdj06-r3z"),
               ("minutodevinganca.json", "minutodevinganca"),
               ("modoheroidrama.json", "modoheroidrama"),
+              ("fuegotv.json", "fuegotv-z7u"),
           ]
           videos = []
           seen = set()
@@ -68,7 +70,7 @@ jobs:
 
           catalog = {
               "channelId": "UCVRGRH2goft4HQ6fWkq-j7g",
-              "channelIds": ["UCVRGRH2goft4HQ6fWkq-j7g", "mzdj06-r3z", "minutodevinganca", "modoheroidrama"],
+              "channelIds": ["UCVRGRH2goft4HQ6fWkq-j7g", "mzdj06-r3z", "minutodevinganca", "modoheroidrama", "fuegotv-z7u"],
               "updatedAt": datetime.now(timezone.utc).isoformat(),
               "videos": videos
           }
@@ -89,18 +91,18 @@ jobs:
           assert isinstance(data.get("videos"), list) and data["videos"]
           assert all(isinstance(v, dict) and v.get("id") for v in data["videos"])
           assert len({v["id"] for v in data["videos"]}) == len(data["videos"]), "IDs duplicados no catálogo."
-          assert len(data.get("channelIds", [])) == 4, "Os três canais não estão configurados."
+          assert len(data.get("channelIds", [])) == 5, "Os três canais não estão configurados."
           print(f"Validação OK: {len(data['videos'])} vídeos únicos.")
           PY
       - name: Publicar catálogo
         run: |
-          rm -f choque.json mzdj.json minutodevinganca.json modoheroidrama.json
+          rm -f choque.json mzdj.json minutodevinganca.json modoheroidrama.json fuegotv.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add videos.json
           if git diff --cached --quiet; then
             echo "Catálogo já está atualizado."
           else
-            git commit -m "Atualizar catálogo dos quatro canais do YouTube"
+            git commit -m "Atualizar catálogo dos cinco canais do YouTube"
             git push
           fi
