@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Instalar yt-dlp
-        run: python -m pip install --upgrade yt-dlp langdetect
+        run: python -m pip install --upgrade yt-dlp
       - name: Buscar vídeos públicos dos cinco canais
         run: |
           yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@choquededrama/videos" > choque.json
@@ -32,18 +32,6 @@ jobs:
           python - <<'PY'
           import json
           from datetime import datetime, timezone
-          from langdetect import detect_langs, LangDetectException
-
-          def is_confidently_english(title):
-              title = (title or "").strip()
-              if len(title) < 8:
-                  return False
-              try:
-                  guesses = detect_langs(title)
-                  return bool(guesses and guesses[0].lang == "en" and guesses[0].prob >= 0.75)
-              except LangDetectException:
-                  return False
-
           sources = [
               ("choque.json", "UCVRGRH2goft4HQ6fWkq-j7g"),
               ("mzdj.json", "mzdj06-r3z"),
@@ -65,9 +53,6 @@ jobs:
                   if not video_id or video_id in seen:
                       continue
                   title = item.get("title") or "Vídeo do canal"
-                  if is_confidently_english(title):
-                      print(f"IGNORADO (título em inglês) [{channel}]: {title}")
-                      continue
                   seen.add(video_id)
                   videos.append({
                       "id": video_id,
@@ -77,7 +62,7 @@ jobs:
                   })
                   count += 1
               if count == 0:
-                  raise SystemExit(f"Nenhum vídeo com título não inglês foi retornado para {channel}; publicação cancelada para preservar o catálogo anterior.")
+                  raise SystemExit(f"Nenhum vídeo novo/visível foi retornado para {channel}; catálogo anterior preservado.")
               counts[channel] = count
 
           if len(videos) < 200:
@@ -92,8 +77,8 @@ jobs:
           with open("videos.json", "w", encoding="utf-8") as f:
               json.dump(catalog, f, ensure_ascii=False, indent=2)
               f.write("\n")
-          print("Vídeos por canal (após filtro de idioma):", counts)
-          print(f"Catálogo unificado: {len(videos)} vídeos únicos; títulos em inglês confiavelmente detectados foram excluídos.")
+          print("Vídeos por canal:", counts)
+          print(f"Catálogo unificado: {len(videos)} vídeos únicos.")
           PY
       - name: Validar formato final
         run: |
