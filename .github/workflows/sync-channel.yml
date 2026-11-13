@@ -15,6 +15,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Instalar yt-dlp
@@ -24,23 +25,47 @@ jobs:
           yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@choquededrama/videos" > channel.json
           python - <<'PY'
           import json
+          from datetime import datetime, timezone
+          channel_id = "UCVRGRH2goft4HQ6fWkq-j7g"
           with open("channel.json", encoding="utf-8") as f:
-              data=json.load(f)
-          videos=[]
-          seen=set()
+              data = json.load(f)
+          videos = []
+          seen = set()
           for item in data.get("entries") or []:
               if not item:
                   continue
-              vid=item.get("id")
-              if not vid or vid in seen:
+              video_id = item.get("id")
+              if not video_id or video_id in seen:
                   continue
-              seen.add(vid)
-              videos.append({"id":vid,"title":item.get("title") or "Vídeo do canal Choque de Drama"})
+              seen.add(video_id)
+              videos.append({
+                  "id": video_id,
+                  "title": item.get("title") or "Vídeo do canal Choque de Drama",
+                  "published": item.get("upload_date") or ""
+              })
           if not videos:
-              raise SystemExit("O YouTube não retornou vídeos; mantendo o catálogo anterior.")
-          with open("videos.json","w",encoding="utf-8") as f:
-              json.dump(videos,f,ensure_ascii=False,separators=(",",":"))
-          print(f"Catálogo atualizado: {len(videos)} vídeos públicos.")
+              raise SystemExit("O YouTube não retornou vídeos; catálogo anterior preservado.")
+          catalog = {
+              "channelId": channel_id,
+              "updatedAt": datetime.now(timezone.utc).isoformat(),
+              "videos": videos
+          }
+          with open("videos.json", "w", encoding="utf-8") as f:
+              json.dump(catalog, f, ensure_ascii=False, indent=2)
+              f.write("\\n")
+          print(f"Catálogo atualizado no formato compatível: {len(videos)} vídeos.")
+          PY
+      - name: Validar formato do catálogo
+        run: |
+          python - <<'PY'
+          import json
+          with open("videos.json", encoding="utf-8") as f:
+              data = json.load(f)
+          assert isinstance(data, dict), "Catálogo precisa ser um objeto JSON."
+          assert data.get("channelId"), "channelId ausente."
+          assert isinstance(data.get("videos"), list) and data["videos"], "Lista videos vazia ou inválida."
+          assert all(isinstance(v, dict) and v.get("id") for v in data["videos"]), "Há vídeo sem ID."
+          print(f"Validação OK: {len(data['videos'])} vídeos.")
           PY
       - name: Publicar catálogo
         run: |
