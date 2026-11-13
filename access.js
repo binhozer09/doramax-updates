@@ -8,14 +8,14 @@
   const PICPay_URL = "https://link.picpay.com/p/17945341236af66aeb27abc";
   const STORAGE_KEY = "doramax_session_v1";
 
-  // Remove somente o banner temporário do teste de atualização remota.
+  // Remove o aviso de teste mesmo quando o texto estiver dentro de elementos filhos.
   const TEST_BANNER_TEXT = "DORAMAX: atualização remota funcionando!";
   const removeTestBanner = (root = document) => {
     const elements = [];
     if (root.nodeType === 1) elements.push(root);
     root.querySelectorAll?.("*").forEach((el) => elements.push(el));
     for (const el of elements) {
-      if (el.children.length === 0 && (el.textContent || "").trim() === TEST_BANNER_TEXT) {
+      if ((el.textContent || "").replace(/\\s+/g, " ").trim() === TEST_BANNER_TEXT) {
         el.remove();
       }
     }
