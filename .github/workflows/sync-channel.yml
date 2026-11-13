@@ -1,0 +1,56 @@
+name: Atualizar vídeos do canal Choque de Drama
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-channel.yml'
+permissions:
+  contents: write
+concurrency:
+  group: sync-choque-de-drama
+  cancel-in-progress: true
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar yt-dlp
+        run: python -m pip install --upgrade yt-dlp
+      - name: Buscar catálogo público completo do canal
+        run: |
+          yt-dlp --flat-playlist --dump-single-json --no-warnings --extractor-args "youtube:player_client=android" "https://www.youtube.com/@choquededrama/videos" > channel.json
+          python - <<'PY'
+          import json
+          with open("channel.json", encoding="utf-8") as f:
+              data=json.load(f)
+          videos=[]
+          seen=set()
+          for item in data.get("entries") or []:
+              if not item:
+                  continue
+              vid=item.get("id")
+              if not vid or vid in seen:
+                  continue
+              seen.add(vid)
+              videos.append({"id":vid,"title":item.get("title") or "Vídeo do canal Choque de Drama"})
+          if not videos:
+              raise SystemExit("O YouTube não retornou vídeos; mantendo o catálogo anterior.")
+          with open("videos.json","w",encoding="utf-8") as f:
+              json.dump(videos,f,ensure_ascii=False,separators=(",",":"))
+          print(f"Catálogo atualizado: {len(videos)} vídeos públicos.")
+          PY
+      - name: Publicar catálogo
+        run: |
+          rm -f channel.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add videos.json
+          if git diff --cached --quiet; then
+            echo "Catálogo já está atualizado."
+          else
+            git commit -m "Atualizar catálogo completo Choque de Drama"
+            git push
+          fi
