@@ -8,16 +8,32 @@
   const PICPay_URL = "https://link.picpay.com/p/17945341236af66aeb27abc";
   const STORAGE_KEY = "doramax_session_v1";
 
-  // Remove o aviso de teste mesmo quando o texto estiver dentro de elementos filhos.
+  // Remove somente o aviso de teste, inclusive quando ele estiver dentro de um container.
   const TEST_BANNER_TEXT = "DORAMAX: atualização remota funcionando!";
+  const normalizeBannerText = (value) => String(value || "").replace(/\s+/g, " ").trim();
   const removeTestBanner = (root = document) => {
     const elements = [];
     if (root.nodeType === 1) elements.push(root);
     root.querySelectorAll?.("*").forEach((el) => elements.push(el));
     for (const el of elements) {
-      if ((el.textContent || "").replace(/\\s+/g, " ").trim() === TEST_BANNER_TEXT) {
-        el.remove();
+      if (!el.isConnected || !normalizeBannerText(el.textContent).includes(TEST_BANNER_TEXT)) continue;
+      const childHasText = [...el.children].some((child) =>
+        normalizeBannerText(child.textContent).includes(TEST_BANNER_TEXT)
+      );
+      if (childHasText) continue;
+
+      let target = el;
+      let parent = el.parentElement;
+      while (parent && parent !== document.body && parent !== document.documentElement) {
+        const marker = ((parent.id || "") + " " +
+          (typeof parent.className === "string" ? parent.className : "")).toLowerCase();
+        if (/(banner|toast|notice|alert|message|status)/.test(marker) &&
+            normalizeBannerText(parent.textContent).includes(TEST_BANNER_TEXT)) {
+          target = parent;
+        }
+        parent = parent.parentElement;
       }
+      target.remove();
     }
   };
   removeTestBanner();
@@ -32,7 +48,9 @@
         }
       }
     });
-    window.__doramaxBannerCleanup.observe(document.documentElement, { childList: true, characterData: true, subtree: true });
+    window.__doramaxBannerCleanup.observe(document.documentElement, {
+      childList: true, characterData: true, subtree: true
+    });
   }
 
   const feed = document.getElementById("feed");
