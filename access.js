@@ -3,6 +3,10 @@
 (() => {
   "use strict";
 
+  // Evita que fallback local e arquivo remoto inicializem o app duas vezes.
+  if (window.__doramaxAccessLoaded) return;
+  window.__doramaxAccessLoaded = true;
+
   // Indicador visual temporário para confirmar o carregamento deste arquivo remoto.
   function installRemoteUpdateHeart() {
     if (!document.body || document.getElementById("dmRemoteUpdateHeart")) return;
