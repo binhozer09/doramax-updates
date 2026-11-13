@@ -1,0 +1,18 @@
+{
+  "name": "DORAMAX GRÁTIS",
+  "short_name": "DORAMAX",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#080808",
+  "description": "DORAMAX GRÁTIS para iPhone.",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
