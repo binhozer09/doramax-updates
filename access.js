@@ -142,23 +142,37 @@
     node.style.background = kind;
   }
 
+  const remoteHiddenElements = new WeakMap();
   function applyRemoteConfig(config) {
     if (!config || typeof config !== "object") return;
     remoteConfig = config;
     const theme = config.theme || {};
-    document.documentElement.style.setProperty("--dm-remote-accent", remoteColor(theme.accentColor, "#e62e49"));
-    document.documentElement.style.setProperty("--dm-remote-background", remoteColor(theme.backgroundColor, ""));
-    if (theme.accentColor) {
-      document.querySelectorAll(".dm-btn, .dm-btn:not(.secondary)").forEach(el => {
-        el.style.backgroundColor = remoteColor(theme.accentColor, "#e62e49");
-      });
-    }
+    const accent = remoteColor(theme.accentColor, "#e62e49");
+    const background = remoteColor(theme.backgroundColor, "");
+    document.documentElement.style.setProperty("--dm-remote-accent", accent);
+    if (background) document.body.style.backgroundColor = background;
+    else document.body.style.removeProperty("background-color");
+    document.querySelectorAll(".dm-btn:not(.secondary)").forEach(el => {
+      if (!el.dataset.dmOriginalAccent) el.dataset.dmOriginalAccent = el.style.backgroundColor || "";
+      el.style.backgroundColor = accent;
+    });
     applyRemoteNotice(config.notice);
+    document.querySelectorAll("[data-dm-remote-hidden='1']").forEach(el => {
+      const original = remoteHiddenElements.get(el);
+      if (original !== undefined) el.style.display = original;
+      delete el.dataset.dmRemoteHidden;
+    });
     const visibility = config.visibility || {};
     if (Array.isArray(visibility.hideSelectors)) {
       visibility.hideSelectors.slice(0, 30).forEach(selector => {
         if (typeof selector !== "string" || selector.length > 120) return;
-        try { document.querySelectorAll(selector).forEach(el => { el.dataset.dmRemoteHidden = "1"; el.style.setProperty("display", "none", "important"); }); } catch (_) {}
+        try {
+          document.querySelectorAll(selector).forEach(el => {
+            if (!el.dataset.dmRemoteHidden) remoteHiddenElements.set(el, el.style.display || "");
+            el.dataset.dmRemoteHidden = "1";
+            el.style.setProperty("display", "none", "important");
+          });
+        } catch (_) {}
       });
     }
     loadRemoteRuntime(config.runtime || {});
