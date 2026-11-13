@@ -214,9 +214,24 @@
 
   async function checkRemoteConfig() {
     try {
-      const response = await fetch(REMOTE_CONFIG_URL + "?ts=" + Date.now(), { cache: "no-store" });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      const config = await response.json();
+      let config = null;
+      try {
+        const dbResponse = await fetch(
+          SUPABASE_URL + "/rest/v1/app_settings?key=eq.remote_config&is_public=eq.true&select=value",
+          { headers: { "apikey": SUPABASE_KEY }, cache: "no-store" }
+        );
+        if (dbResponse.ok) {
+          const rows = await dbResponse.json();
+          if (Array.isArray(rows) && rows[0] && rows[0].value) config = rows[0].value;
+        }
+      } catch (dbError) {
+        console.warn("[DORAMAX] Supabase remoto indisponível; tentando configuração de reserva.", dbError);
+      }
+      if (!config) {
+        const response = await fetch(REMOTE_CONFIG_URL + "?ts=" + Date.now(), { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        config = await response.json();
+      }
       if (!config || config.schemaVersion !== 1) throw new Error("Formato de configuração remota inválido.");
       applyRemoteConfig(config);
     } catch (error) {
