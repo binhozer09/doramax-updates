@@ -6,6 +6,8 @@
   // Evita que fallback local e arquivo remoto inicializem o app duas vezes.
   if (window.__doramaxAccessLoaded) return;
   window.__doramaxAccessLoaded = true;
+  window.__doramaxAccessSource = "remote";
+  window.__doramaxAccessVersion = "2026.11.13";
 
   // Indicador visual temporário para confirmar o carregamento deste arquivo remoto.
   function installRemoteUpdateHeart() {
