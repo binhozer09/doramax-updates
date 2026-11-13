@@ -508,15 +508,16 @@
       currentUser = await api("/auth/v1/user", { method: "GET" }, session.access_token);
       updateLoggedAs();
       const uid = currentUser.id;
-      const adminRows = await api("/rest/v1/admin_users?select=user_id&user_id=eq." + encodeURIComponent(uid), { method: "GET" }, session.access_token);
+      // Busca as permissões em paralelo para reduzir a espera após o login.
+      const results = await Promise.all([
+        api("/rest/v1/admin_users?select=user_id&user_id=eq." + encodeURIComponent(uid), { method: "GET" }, session.access_token),
+        api("/rest/v1/access_grants?select=is_unlocked&user_id=eq." + encodeURIComponent(uid), { method: "GET" }, session.access_token)
+      ]);
+      const adminRows = results[0];
+      const grantRows = results[1];
       isAdmin = Array.isArray(adminRows) && adminRows.length > 0;
       updateLoggedAs();
-      if (isAdmin) {
-        unlocked = true;
-      } else {
-        const rows = await api("/rest/v1/access_grants?select=is_unlocked&user_id=eq." + encodeURIComponent(uid), { method: "GET" }, session.access_token);
-        unlocked = !!(Array.isArray(rows) && rows[0] && rows[0].is_unlocked === true);
-      }
+      unlocked = isAdmin || !!(Array.isArray(grantRows) && grantRows[0] && grantRows[0].is_unlocked === true);
       updateGate();
       document.getElementById("dmLogout").style.display = "block";
       document.getElementById("dmStatus").textContent = unlocked
