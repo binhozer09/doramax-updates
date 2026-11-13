@@ -847,7 +847,7 @@
             }, session.access_token);
             save.textContent = "SALVO";
             const status = document.getElementById("dmContentAdminStatus");
-            status.textContent = "Vídeo atualizado. Reabra o app para ver a alteração no feed.";
+            status.textContent = "Vídeo atualizado. O feed muda na próxima atualização automática (até 15 min) ou ao reabrir o app.";
           } catch (error) {
             save.disabled = false; save.textContent = "SALVAR";
             document.getElementById("dmContentAdminStatus").textContent = "Erro ao salvar vídeo: " + error.message;
