@@ -8,23 +8,31 @@
   const PICPay_URL = "https://link.picpay.com/p/17945341236af66aeb27abc";
   const STORAGE_KEY = "doramax_session_v1";
 
-  // Remove apenas o banner temporário do teste de atualização remota.
+  // Remove somente o banner temporário do teste de atualização remota.
+  const TEST_BANNER_TEXT = "DORAMAX: atualização remota funcionando!";
   const removeTestBanner = (root = document) => {
-    root.querySelectorAll?.("body *").forEach((el) => {
-      if (el.children.length === 0 && el.textContent.trim() === "DORAMAX: atualização remota funcionando!") el.remove();
-    });
+    const elements = [];
+    if (root.nodeType === 1) elements.push(root);
+    root.querySelectorAll?.("*").forEach((el) => elements.push(el));
+    for (const el of elements) {
+      if (el.children.length === 0 && (el.textContent || "").trim() === TEST_BANNER_TEXT) {
+        el.remove();
+      }
+    }
   };
   removeTestBanner();
   if (document.documentElement && !window.__doramaxBannerCleanup) {
     window.__doramaxBannerCleanup = new MutationObserver((records) => {
-      for (const record of records) for (const node of record.addedNodes) {
-        if (node.nodeType === 1) {
-          if (node.textContent?.trim() === "DORAMAX: atualização remota funcionando!") node.remove();
-          else removeTestBanner(node);
+      for (const record of records) {
+        const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+        if (target) removeTestBanner(target);
+        for (const node of record.addedNodes) {
+          if (node.nodeType === 1) removeTestBanner(node);
+          else if (node.parentElement) removeTestBanner(node.parentElement);
         }
       }
     });
-    window.__doramaxBannerCleanup.observe(document.documentElement, { childList: true, subtree: true });
+    window.__doramaxBannerCleanup.observe(document.documentElement, { childList: true, characterData: true, subtree: true });
   }
 
   const feed = document.getElementById("feed");
