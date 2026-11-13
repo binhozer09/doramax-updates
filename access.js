@@ -8,25 +8,6 @@
   const PICPay_URL = "https://link.picpay.com/p/17945341236af66aeb27abc";
   const STORAGE_KEY = "doramax_session_v1";
 
-  // Remove o aviso temporário de teste, inclusive se uma cópia antiga ainda o inserir.
-  const removeTestBanner = (root = document) => {
-    root.querySelectorAll?.("body *").forEach((el) => {
-      if (el.children.length === 0 && el.textContent.trim() === "DORAMAX: atualização remota funcionando!") el.remove();
-    });
-  };
-  removeTestBanner();
-  if (document.documentElement && !window.__doramaxBannerCleanup) {
-    window.__doramaxBannerCleanup = new MutationObserver((records) => {
-      for (const record of records) for (const node of record.addedNodes) {
-        if (node.nodeType === 1) {
-          if (node.textContent?.trim() === "DORAMAX: atualização remota funcionando!") node.remove();
-          else removeTestBanner(node);
-        }
-      }
-    });
-    window.__doramaxBannerCleanup.observe(document.documentElement, { childList: true, subtree: true });
-  }
-
   const feed = document.getElementById("feed");
   let cards = [...document.querySelectorAll("#feed .video")];
   if (!feed || cards.length < 3) return;
