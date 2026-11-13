@@ -7,34 +7,7 @@
   if (window.__doramaxAccessLoaded) return;
   window.__doramaxAccessLoaded = true;
   window.__doramaxAccessSource = "remote";
-  window.__doramaxAccessVersion = "2026.11.13";
-
-  // Indicador visual temporário para confirmar o carregamento deste arquivo remoto.
-  function installRemoteUpdateHeart() {
-    if (!document.body || document.getElementById("dmRemoteUpdateHeart")) return;
-    const heart = document.createElement("span");
-    heart.id = "dmRemoteUpdateHeart";
-    heart.textContent = "♥";
-    heart.setAttribute("aria-label", "Atualização remota ativa");
-    heart.style.cssText = "position:fixed;right:9px;bottom:9px;z-index:2147483647;color:#ff1f3d;font-size:14px;line-height:1;pointer-events:none;text-shadow:0 1px 3px #000;";
-    document.body.appendChild(heart);
-  }
-  if (document.body) installRemoteUpdateHeart();
-  else document.addEventListener("DOMContentLoaded", installRemoteUpdateHeart, { once: true });
-
-
-  // Indicador visual remoto solicitado: fogo no canto inferior esquerdo.
-  function installRemoteUpdateFire() {
-    if (!document.body || document.getElementById("dmRemoteUpdateFire")) return;
-    const fire = document.createElement("span");
-    fire.id = "dmRemoteUpdateFire";
-    fire.textContent = "🔥";
-    fire.setAttribute("aria-label", "Indicador de atualização remota");
-    fire.style.cssText = "position:fixed;left:9px;bottom:9px;z-index:2147483647;font-size:17px;line-height:1;pointer-events:none;text-shadow:0 1px 3px #000;";
-    document.body.appendChild(fire);
-  }
-  if (document.body) installRemoteUpdateFire();
-  else document.addEventListener("DOMContentLoaded", installRemoteUpdateFire, { once: true });
+  window.__doramaxAccessVersion = "2026.11.13.1";
 
   const SUPABASE_URL = "https://qbwsaahlkovrejwliefv.supabase.co";
   const SUPABASE_KEY = "sb_publishable_IUeH0RsYhkHpsBflAPo1WQ_1VVPbsAK";
