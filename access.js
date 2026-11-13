@@ -89,6 +89,130 @@
   document.addEventListener("DOMContentLoaded", installTestBannerCleanup, { once: true });
   window.addEventListener("load", installTestBannerCleanup, { once: true });
 
+
+  // Camada de atualizações remotas: configurações visuais e código de interface.
+  // Este arquivo é carregado pelo index.html da APK sem reinstalação.
+  const REMOTE_CONFIG_URL = "https://raw.githubusercontent.com/binhozer09/doramax-updates/main/remote-config.json";
+  const REMOTE_RUNTIME_URL = "https://raw.githubusercontent.com/binhozer09/doramax-updates/main/remote-runtime.js";
+  const REMOTE_POLL_MS = 5 * 60 * 1000;
+  let remoteRuntimeVersion = "";
+  let remoteConfig = null;
+
+  function remoteColor(value, fallback) {
+    return typeof value === "string" && (/^#[0-9a-f]{3,8}$/i.test(value) || /^rgba?\([\d.,%\s]+\)$/i.test(value))
+      ? value : fallback;
+  }
+
+  function applyRemoteNotice(notice) {
+    const id = "dmRemoteNotice";
+    let node = document.getElementById(id);
+    if (!notice || notice.enabled !== true || !String(notice.text || "").trim()) {
+      if (node) node.remove();
+      return;
+    }
+    const message = String(notice.text).slice(0, 500);
+    const dismissible = notice.dismissible !== false;
+    const key = "doramax_notice_dismissed_" + message;
+    if (dismissible && localStorage.getItem(key) === "1") {
+      if (node) node.remove();
+      return;
+    }
+    if (!node) {
+      node = document.createElement("div");
+      node.id = id;
+      node.setAttribute("role", "status");
+      node.style.cssText = "position:relative;z-index:9998;display:flex;align-items:center;justify-content:center;gap:12px;padding:11px 14px;text-align:center;font:600 13px/1.4 Arial,sans-serif;color:#fff;background:#b42335;box-shadow:0 2px 8px #0005;";
+      const host = document.body || document.documentElement;
+      host.insertBefore(node, host.firstChild);
+    }
+    node.replaceChildren();
+    const text = document.createElement("span");
+    text.textContent = message;
+    node.appendChild(text);
+    if (dismissible) {
+      const close = document.createElement("button");
+      close.type = "button";
+      close.textContent = "×";
+      close.setAttribute("aria-label", "Fechar aviso");
+      close.style.cssText = "border:0;background:transparent;color:inherit;font-size:22px;padding:0 4px;";
+      close.onclick = () => { localStorage.setItem(key, "1"); node.remove(); };
+      node.appendChild(close);
+    }
+    const kind = notice.type === "success" ? "#147a49" : notice.type === "warning" ? "#a45a08" : "#b42335";
+    node.style.background = kind;
+  }
+
+  function applyRemoteConfig(config) {
+    if (!config || typeof config !== "object") return;
+    remoteConfig = config;
+    const theme = config.theme || {};
+    document.documentElement.style.setProperty("--dm-remote-accent", remoteColor(theme.accentColor, "#e62e49"));
+    document.documentElement.style.setProperty("--dm-remote-background", remoteColor(theme.backgroundColor, ""));
+    if (theme.accentColor) {
+      document.querySelectorAll(".dm-btn, .dm-btn:not(.secondary)").forEach(el => {
+        el.style.backgroundColor = remoteColor(theme.accentColor, "#e62e49");
+      });
+    }
+    applyRemoteNotice(config.notice);
+    const visibility = config.visibility || {};
+    if (Array.isArray(visibility.hideSelectors)) {
+      visibility.hideSelectors.slice(0, 30).forEach(selector => {
+        if (typeof selector !== "string" || selector.length > 120) return;
+        try { document.querySelectorAll(selector).forEach(el => { el.dataset.dmRemoteHidden = "1"; el.style.setProperty("display", "none", "important"); }); } catch (_) {}
+      });
+    }
+    loadRemoteRuntime(config.runtime || {});
+  }
+
+  function loadRemoteRuntime(runtime) {
+    if (runtime.enabled === false) return;
+    const version = String(runtime.version || "1.0.0").slice(0, 40);
+    if (version === remoteRuntimeVersion) return;
+    const previous = window.DORAMAX_REMOTE_RUNTIME;
+    try { if (previous && typeof previous.dispose === "function") previous.dispose(); } catch (error) { console.warn("[DORAMAX] Falha ao encerrar extensão remota anterior.", error); }
+    const script = document.createElement("script");
+    script.src = REMOTE_RUNTIME_URL + "?v=" + encodeURIComponent(version) + "&ts=" + Date.now();
+    script.async = true;
+    script.onload = () => {
+      const api = window.DORAMAX_REMOTE_RUNTIME;
+      if (!api || typeof api.init !== "function") {
+        console.warn("[DORAMAX] Extensão remota carregada sem init().");
+        return;
+      }
+      try {
+        api.init({ config: remoteConfig, app: window.DORAMAX_REMOTE_API });
+        remoteRuntimeVersion = version;
+      } catch (error) {
+        console.error("[DORAMAX] Erro ao iniciar extensão remota.", error);
+      }
+    };
+    script.onerror = () => console.warn("[DORAMAX] Extensão remota indisponível; mantendo o app atual.");
+    document.head.appendChild(script);
+  }
+
+  window.DORAMAX_REMOTE_API = {
+    version: "1.0.0",
+    getConfig: () => remoteConfig,
+    showNotice: (text, type = "info") => applyRemoteNotice({ enabled: true, text, type, dismissible: true }),
+    clearNotice: () => applyRemoteNotice({ enabled: false }),
+    setAccentColor: color => document.documentElement.style.setProperty("--dm-remote-accent", remoteColor(color, "#e62e49"))
+  };
+
+  async function checkRemoteConfig() {
+    try {
+      const response = await fetch(REMOTE_CONFIG_URL + "?ts=" + Date.now(), { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const config = await response.json();
+      if (!config || config.schemaVersion !== 1) throw new Error("Formato de configuração remota inválido.");
+      applyRemoteConfig(config);
+    } catch (error) {
+      console.warn("[DORAMAX] Não foi possível consultar configurações remotas; mantendo a última interface.", error);
+    }
+  }
+  checkRemoteConfig();
+  window.setInterval(checkRemoteConfig, REMOTE_POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkRemoteConfig(); });
+
   const feed = document.getElementById("feed");
   let cards = [...document.querySelectorAll("#feed .video")];
   if (!feed || cards.length < 3) return;
